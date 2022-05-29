@@ -127,7 +127,149 @@ https://devopssec.fr/article/structures-et-methodes-golang#begin-article-section
 
 
 
-// type et struct avec pointeur 
+// type et struct avec pointeur  pas ouf cette technique
 
 //https://www.golangprograms.com/go-language/struct.html
 //Nested Struct Type
+
+// best technique 
+
+type AllRoom struct {
+	rooms []map[string]string 
+}
+
+
+
+var notes = make(map[string]string)
+notes[nameRoomForUsers] = nameRoomForUsers // ok
+notes["strokes"] = ""                      // ok
+notes["etape_courante"] = "etape_0"
+notes["mot"] = ""
+notes[NamePlayer] = "{admin: true, drawer: false, score : 0}"
+notes["chats"] = "" // ok
+// var notes2 = make(map[string]string)
+// notes2["Hatimz"] = "a"
+// notes2["Alexz"] = "a"
+// notes2["Kevinzzzzz"] = "a"
+// notes2 === AllRoom1.rooms[1] cest lindex 1 alors que le truc au dessus  notes cest lindex 0
+AllRoom1 = AllRoom{
+rooms: []map[string]string{
+
+	/*futurRoom*/ /*nameRoomForUsers*/ notes,
+	//notes2, // ajouter a l index 1 cette notes2
+
+},
+}
+
+
+
+// pour ajouter un nouveau salon de +
+
+
+var notes = make(map[string]string)
+notes[nameRoomForUsers] = nameRoomForUsers
+notes["strokes"] = ""
+notes["etape_courante"] = "etape_0"
+notes[NamePlayer] = "{admin: true, drawer: false, score : 0}"
+notes["chats"] = ""
+notes["mot"] = ""
+AllRoom1.rooms = append(AllRoom1.rooms,
+
+/*futurRoom*/ /*nameRoomForUsers*/
+notes,
+)
+
+
+
+// pour affecter une valeur a la key chat
+
+
+if salonExist == 1 && strings.Contains(v, "chat") {
+//fmt.Println("tableau",listAllData)
+//"chat":"david: lu"
+//nameRoomForUsers
+chat = strings.ReplaceAll(v, "\"chat\":", "")
+fmt.Printf("\n  le nouveau message")
+//fmt.Println("\n  donnée",AllRoom1 )
+
+// cherche l'index ou se trouve la salle dans Allroom1
+var indexAllroom int
+for i, item := range AllRoom1.rooms {
+	//fmt.Println("index ", v)
+
+	//if ( strings.Contains(item, nameRoomForUsers)){
+	//fmt.Println("chaque item", item)
+	//fmt.Println("\nitem "+nameRoomForUsers+" :", item[nameRoomForUsers])
+	//}
+	if item[nameRoomForUsers] == nameRoomForUsers {
+		//fmt.Println("nameRoomForUsers ", nameRoomForUsers)
+		//fmt.Println("index ", i)
+		indexAllroom = i
+		// ensuite allons sur allRoom1.rooms[indexAllroom]["chats"]
+		//fmt.Println("\n avant chat ", AllRoom1.rooms[indexAllroom]["chats"])
+		if strings.Contains(AllRoom1.rooms[indexAllroom]["chats"], chat+"\n") {
+			// pour eviter quil ecrit deux fois le nouveau message chat
+		} else {
+			AllRoom1.rooms[indexAllroom]["chats"] = AllRoom1.rooms[indexAllroom]["chats"] + chat + "\n"
+		}
+
+		//fmt.Println("\n apres chat ", AllRoom1.rooms[indexAllroom]["chats"])
+
+	}
+
+}
+	
+	
+// delete user
+//{"salon-1":"salon-1","quit":"sam"}
+if strings.Contains(string(payload), "quit") {
+	deleteSalon := 1
+	byt := []byte(string(payload))
+	var dat map[string]interface{}
+	if err := json.Unmarshal(byt, &dat); err != nil {
+		panic(err)
+	}
+	fmt.Println(dat)
+	deleteUser := dat["quit"].(string)
+	fmt.Println("\ndeleteuser", deleteUser)
+	for i, item := range AllRoom1.rooms {
+		//fmt.Println("\ni",i)
+		//fmt.Println("\n item ",item)
+		if item[nameRoomForUsers] == nameRoomForUsers {
+
+			//fmt.Println(" fait voir",AllRoom1.rooms[i])
+			delete(AllRoom1.rooms[i], "\""+deleteUser+"\"")
+			//fmt.Println("\n fait voir apres delete user",AllRoom1.rooms[i])
+
+			for _, value := range AllRoom1.rooms[i] {
+				if strings.Contains(value, "admin") {
+					deleteSalon = 0
+				}
+			}
+			// alors delete salon car il n y a pas plus de user
+			if deleteSalon == 1 {
+				AllRoom1.rooms = append(AllRoom1.rooms[:i], AllRoom1.rooms[(i+1):]...)
+				//delete(AllRoom1,AllRoom1.rooms[i])
+				// marche pas???????
+				fmt.Println("\n apres delete room", AllRoom1.rooms)
+			}
+		}
+
+	}
+}
+
+	
+// choopez les valeurs dans la chaine de string
+////{"changement_etape":"etape_2","mot":"outgasses"}
+// transforme en  tableau en byte
+byt := []byte(string(payload))
+	var dat map[string]interface{}
+	if err := json.Unmarshal(byt, &dat); err != nil {
+		panic(err)
+	}
+	//fmt.Println(dat)
+
+	changEtape := dat["changement_etape"].(string)
+	fmt.Println(" valeur de changement_etape  ", changEtape)
+
+	mot:= fmt.Sprintf("%v", dat["mot"]) // si par exemple la valeur devient bool ou string   chope la valeur par srpintf
