@@ -132,6 +132,17 @@ https://devopssec.fr/article/structures-et-methodes-golang#begin-article-section
 //https://www.golangprograms.com/go-language/struct.html
 //Nested Struct Type
 
+
+
+
+
+
+
+
+
+
+
+
 // best technique !!!!!!!!!!!!!!!!!!!
 
 type AllRoom struct {
