@@ -1,0 +1,118 @@
+{{ template "header.html" .}}
+<script type="text/javascript">
+
+  function Rejoindre(room, idx) {
+
+    let pseudo = document.getElementById(`pseudo-${idx}`).value;
+    if (pseudo == '') {
+      pseudo = randomPseudo()
+    }
+    let s = new WebSocket("ws://" + document.location.host + `/add/${pseudo}/${room}`);
+    stockagePseudo(pseudo);
+    // stockagePseudo(pseudo.value)
+
+    setTimeout(function () {
+      document.location = document.URL + "room/" + room
+    }, 10);
+  }
+
+  function randomPseudo() {
+    var result           = '';
+    var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var charactersLength = characters.length;
+    for ( var i = 0; i < 5; i++ ) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  }
+
+  function stockagePseudo(pseudo) {
+    localStorage.setItem('pseudo', pseudo);
+  }
+
+    window.onload = function () {
+        let msg = document.getElementById("msg");
+        let liste = document.getElementById("liste");
+        let pseudo = document.getElementById("pseudo");
+
+        function appendLog(item) {
+            log.appendChild(item);
+        }
+
+        const params = window.location.href.split("/");
+        const roomId = params[params.length - 1];
+        var socket = new WebSocket("ws://" + document.location.host + "/ws/accueil");
+
+        console.log("Attempting Connection...");
+
+        socket.onopen = () => {
+          console.log("Successfully Connected");
+          console.log("OUVERTURE");
+        };
+
+        socket.onclose = event => {
+          console.log("Socket Closed Connection: ", event);
+          socket.send("Client Closed!")
+        };
+
+        socket.onerror = error => {
+          console.log("Socket Error: ", error);
+        };
+
+        socket.onmessage = function (evt) {
+            console.log(evt);
+            ajoutListe([evt.data])
+            console.log("NOUVEAU MESSAGE");
+        };
+
+        document.getElementById("creation").addEventListener("click", creationSalon);
+
+        const listeSalon = {{ .salons }};
+
+        ajoutListe(listeSalon)
+
+        function creationSalon(e) {
+          e.preventDefault()
+          stockagePseudo(pseudo.value)
+          const id = Date.now();
+          let s = new WebSocket("ws://" + document.location.host + "/salons/" + msg.value + "/" + id + "/" + localStorage.getItem('pseudo'));
+          socket.send(msg.value + "-" + id)
+          setTimeout(function () {
+            document.location = document.URL + "room/" + msg.value + "-" + id
+          }, 10);
+        }
+
+        function ajoutListe(listeSalon) {
+          if (listeSalon) {
+              let l = document.getElementById("liste");
+            listeSalon.forEach((element, idx) => {
+              const regex1 = /^[^-]*/;
+              const resulat = regex1.exec(element)
+              let div = document.createElement("li");
+              div.innerHTML = `<input type="text" placeholder="Pseudo" id="pseudo-${idx}" value=""> <input type="button" value="Rejoindre lobby '${resulat[0]}'" onclick="Rejoindre('${element}', ${idx});" />`;
+              liste.appendChild(div);
+            });
+          }
+        }
+    };
+
+</script>
+  <div id="log"></div>
+      <div class="formulaire">
+        <form class="shadow-lg p-3 mb-5 bg-body rounded">
+          <div class="mb-3">
+            <label for="exampleInputEmail1" class="form-label">Pseudo</label>
+            <input type="text" id="pseudo" class="form-control" aria-describedby="emailHelp">
+          </div>
+          <div class="mb-3">
+            <label for="exampleInputPassword1" class="form-label">Salon</label>
+            <input type="text" class="form-control" id="msg" >
+            <div id="emailHelp" class="form-text">Creer un salon</div>
+          </div>
+          <button type="button" id="creation" class="btn btn-primary w-100">Jouer</button>
+        </form>
+      </div>
+  <ul id="liste">
+  </ul>
+<!--Embed the footer.html template at this location-->
+{{ template "footer.html" .}}

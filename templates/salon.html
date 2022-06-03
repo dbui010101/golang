@@ -1,0 +1,625 @@
+  {{ template "header.html" .}}
+  <style>
+      #canvas {
+          border: 1px solid #000;
+      }
+  </style>
+    <div id="pseudo">
+      <p>Entrez un pseudo pour rejoindre le salon !</p>
+      <input type="text" id="nouveau-pseudo" autofocus name="" value="" />
+      <input type="button" id="pseudo-ok" name="" value="Valider" />
+    </div>
+<!-- <h1>{{ .pseudo }}</h1> -->
+
+<!-- <h1>{{ .data }}</h1> -->
+    <div class="container-fluid mt-3" id="jeu">
+      <div class="row">
+        <div class="col-12 shadow bg-body font-weight-bold mb-2 rounded panel" id="mot-a-deviner">
+          <div class="row">
+            <div id="temps" class="col-1">
+              00:00
+            </div>
+            <div id="mot" class="col-10">
+            </div>
+          </div>
+        </div>
+        <ul class="list-group col-3 shadow bg-body rounded p-0 " id="zonePseudo">
+        </ul>
+        <div class="col-6" id="zoneDessin">
+            <div id="info"></div>
+          <canvas id="canvas" width="480" height="360"></canvas>
+          <button style="width: 480px" id="clearButton"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABSUlEQVRIid3VSy4EURTG8R+te0LsgAVgFQgzr3QsQrw3wMhrF0LYi5hpb6aMpU0YNIO6napwu7paM/ElN6eSOvX9T906dS7/XRUs4gQ3eEUd1zhGFeXIc9tFzBfwiI826w6zX8w/8ox7cZAxuMAaRtEf1ijWUQs5DexkzHMBTfM3LAVgK5WwivfIm0W1kDEfz6viiw6LACrSPV/qwHwrYh4FLEr3vNSleRRwGm6sFq69Q90GwMhfAeoBMPCbprEW7OnCb1BS5EsM8BTiUBeA4RCfY4DzEKe6AEyHeBa72WzTmuJtmlUJl8GjGkuo4CEkLP8AsCYdfrEJC+alo2KiA/NJyTxqYKZd8n4GsiJ/u/oklTeH3W6RanozkOY32cCY5B8ZCNeb0j1vYE/+5P2mOdxrPWtaHTgdqSzpiGPJMVkP6wpHWh+Z/0ifPsl0XSeXBxcAAAAASUVORK5CYII="/></button>
+        </div>
+
+        <div class="col-3 align-items-end shadow bg-body rounded panel d-flex">
+          <div class="row">
+          <div id="log"></div>
+              <input type="text" id="msg" size="64" autofocus />
+              <input type="button" id="envoie" value="Envoyer" />
+          </div>
+        </div>
+        <div class="">
+          <button type="button" name="button" onclick="Stop()">STOP</button>
+          <button type="button" name="button" onclick="j.ChangerEtape('etape_1')">ETAPE 1</button>
+        </div>
+        <div class="col-3 mt-2 d-flex justify-content-center">
+          <input type="button" value="💾" onclick="j.Copy();" /><textarea id="url" rows="1" cols="30"></textarea>
+        </div>
+      </div>
+    </div>
+    <script>
+      const panel = document.getElementsByClassName('panel')
+      const infoCanvas = document.getElementById('info')
+      const timer = document.getElementById('temps')
+      const motAdeviner = document.getElementById('mot')
+      const moi = localStorage.getItem('pseudo')
+
+      let socket;
+
+      var canvas = document.getElementById('canvas');
+      var ctx = canvas.getContext("2d");
+      var isDrawing = false;
+      var strokeColor = '';
+      var strokes = [];
+      var allStrokes=[];
+
+      var otherColors = {};
+      var otherStrokes = [];
+
+      MESSAGE_CONNECTED = 1;
+      MESSAGE_USER_JOINED = 2;
+      MESSAGE_USER_LEFT = 3;
+      MESSAGE_STROKE = 4;
+      MESSAGE_CLEAR = 5;
+
+      let rooms = {}
+      rooms.salonName = {
+        etape_courante: 'etape_0',
+        users: {
+          'sam': { drawer: true, admin: false },
+          'jamie': { drawer: false, admin: false },
+          'david': { drawer: false, admin: true },
+          'marcel': { drawer: false, admin: false },
+          'jamie': { drawer: false, admin: false }
+        },
+        dessin: [
+        {
+          x: 215,
+          y: 450,
+          finish: false
+        },
+        {
+          x: 215,
+          y: 450,
+          finish: false
+        },
+        {
+          x: 215,
+          y: 450,
+          finish: false
+        },
+        ]
+      }
+
+
+      var secondes = 30;
+      var minutes = 0;
+      var on = false;
+      var reset = false;
+      var m;
+
+      function chrono(){
+        secondes -= 1;
+
+        if(secondes>59){
+          minutes += 1;
+          secondes = 0;
+        }
+
+        if(minutes<10 && secondes<10){
+          // $("#timer").html("0"+minutes+" : 0"+secondes);
+            timer.innerHTML = `0${this.minutes}:0${this.secondes}`;
+        }
+          else if(minutes<10 && secondes>=10){
+            // $("#timer").html("0"+minutes+" : "+secondes);
+            timer.innerHTML = `0${this.minutes}:${this.secondes}`;
+        }
+        else if(minutes>=10 && secondes<10){
+            // $("#timer").html(+minutes+" : 0"+secondes);
+            timer.innerHTML = `${this.minutes} : 0${this.secondes}`;
+        }
+        else if(minutes>=10 && secondes>10){
+            // $("#timer").html(+minutes+" : "+secondes);
+            timer.innerHTML = `${this.minutes}:${this.secondes}`;
+        }
+      }
+
+      function Start(){
+        if(on===false){
+          timerID = setInterval(chrono, 1000);
+          const myTimeout = setTimeout(Stop, 30000);
+          on = true;
+          reset = false;
+        }
+      }
+
+      function Stop(){
+        if(on===true){
+          on = false;
+          clearTimeout(timerID);
+          j.ChangerEtape('etape_3', motAdeviner.innerHTML)
+          secondes = 30;
+          minutes = 0;
+        }
+      }
+
+      function Reset() {
+        if(reset===false)
+        {
+          clearInterval(timerID);
+          secondes = 30;
+          minutes = 0;
+          timer.innerHTML = `00:00`;
+          reset = true;
+        }
+      }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      class Jeu {
+        Cadre(etat) {
+          if (etat) {
+             document.getElementById('info').classList.add("cacher")
+             document.getElementById('info').classList.remove("ouvrir")
+          } else {
+            document.getElementById('info').classList.remove("cacher")
+            document.getElementById('info').classList.add("ouvrir")
+          }
+        }
+
+        BoutonDemarrage(destruction, texte = '', onclick = '') {
+          if (destruction) infoCanvas.innerHTML = ""
+          else infoCanvas.innerHTML = `<button type='button' onclick='${onclick}'>${texte}</button>`
+        }
+
+        Boutons(texte = '', onclick = '') {
+          infoCanvas.innerHTML = `<button type='button' onclick='${onclick}'>${texte}</button>`
+        }
+
+        JeChoisisUnMot() {
+
+          infoCanvas.innerHTML = "chargement..."
+          let texte = ""
+          fetch("https://random-word-api.herokuapp.com/word?number=3")
+          .then(response => response.json())
+          .then(response => {
+            for (var i = 0; i < response.length; i++) {
+              texte += `<button type='button' onclick="j.ChangerEtape('etape_2', this.innerText); j.Clear()">${response[i]}</button>`
+            }
+            infoCanvas.innerHTML = texte
+          })
+          .catch(error => alert("Erreur : " + error));
+          // infoCanvas.innerHTML = `<button type='button' onclick="j.ChangerEtape('etape_2', this.innerText);">Jambon</button> <button type='button'>Scribble</button> <button type='button'>Cafe</button>`
+        }
+
+        ChangerEtape(etape_suivante, mot = '') {
+          socket.send(JSON.stringify({changement_etape: etape_suivante, mot: mot}))
+        }
+
+        ChangerDessinateur() {
+          zonePseudo.innerHTML = ""
+          rooms.salonName.users.sam = false
+          rooms.salonName.users.david = true
+          if (personnes_deja_presente) personnes_deja_presente.forEach((item, i) => ajoutPseudo(item) );
+        }
+
+        DemandeSiBonMot(demande_mot) {
+          if (rooms.salonName.users[localStorage.getItem('pseudo')] == true) {
+            console.log("DEMANDE SI BON MOT");
+          }
+        }
+
+        AffichageEtape0(admin) {
+          if (admin) this.BoutonDemarrage(false, 'Commencer à jouer', `j.BoutonDemarrage(true); j.ChangerEtape("etape_1", true)`)
+          else this.BoutonDemarrage(false, "L'admin peut commencer la partie")
+        }
+
+        AffichageEtape1(drawer) {
+          if (drawer) this.JeChoisisUnMot()
+          else this.BoutonDemarrage(false, `XXXY est en train de choisir le mot`)
+          // Object.keys(rooms.salonName.users).forEach(x => rooms.salonName.users[x].drawer))
+        }
+
+        AffichageEtape2(_mot) {
+           this.Cadre(true)
+           m = _mot
+          if (rooms.salonName.users[moi].drawer) (motAdeviner.innerHTML = `${_mot}`, activationCanvas(true))
+          else (motAdeviner.innerHTML = `${_mot.replace(/[a-zA-Z]/g, '_ ')}`, activationCanvas(false))
+          Start()
+        }
+
+        AffichageEtape3(mot) {
+          this.Cadre(false)
+          activationCanvas(false)
+          this.BoutonDemarrage(false, `Le mot était: ${mot}`)
+          setTimeout(() => {
+            if (rooms.salonName.users[moi].drawer) {
+              this.ChangerEtape('etape_1')
+            }
+          }, 3000)
+        }
+
+        AffichageEtape4(admin) {
+
+        }
+
+        Clear() {
+          strokes = [];
+          socket.send(JSON.stringify({ kind: MESSAGE_CLEAR }));
+          update();
+        }
+
+        Copy() {
+          var Url = document.getElementById("url");
+          Url.innerHTML = window.location.href;
+          console.log(Url.innerHTML)
+          Url.select();
+          document.execCommand("copy");
+        }
+      }
+
+      const j = new Jeu()
+
+      const activationEtape = {
+        "etape_0": () => j.AffichageEtape0(rooms.salonName.users[moi].admin),
+        "etape_1": () => j.AffichageEtape1(rooms.salonName.users[moi].drawer),
+        "etape_2": (m) => j.AffichageEtape2(m),
+        "etape_3": (m) => j.AffichageEtape3(m)
+      }
+      // setTimeout(function () {
+        //Bouton Commencer partie --- Rien
+        // j.AffichageEtape0(rooms.salonName.users[moi].admin)
+      // }, 1000);
+
+      //Boutons choix mots --- Texte informatife (X est entrain de choisir)
+      // setTimeout(function () {
+  //Bouton Commencer partie --- Rien
+      // j.AffichageEtape1(rooms.salonName.users[moi].drawer)
+    // }, 10000);
+
+
+    // setTimeout(function () {
+      // activationCanvas(true)
+    // }, 14000);
+
+    // setTimeout(function () {
+      // activationCanvas(false)
+      // document.getElementById('info').classList.add("cacher")
+      // activationCanvas(true)
+    // }, 5000);
+
+    // setTimeout(function () {
+      // activationCanvas(false)
+      // document.getElementById('info').classList.remove("cacher")
+      // document.getElementById('info').classList.add("ouvrir")
+      // activationCanvas(true)
+    // }, 9000);
+
+
+    // setTimeout(function () {
+      // activationCanvas(false)
+      // document.getElementById('info').classList.remove("cacher")
+    // }, 15000);
+
+
+      //Enlever cadre + canvas disponible + mots choisi visible --- Enlever cadre + canvas disponible + mots avec des tirets
+      // j.AffichageEtape2(rooms.salonName.users[moi].admin)
+
+      //Le mots était "Blablabla" - peronne suivante - Retour à l'etape 2
+      // j.AffichageEtape3(rooms.salonName.users[moi].admin)
+
+      // j.BoutonDemarrage(false)
+
+const jeu = document.getElementById('jeu')
+const pseudoEntrer = document.getElementById('pseudo')
+const entrer = document.getElementById('jeu')
+const pseudoOK = document.getElementById("pseudo-ok")
+const nouveau_pseudo = document.getElementById("nouveau-pseudo")
+const personnes_deja_presente = {{ .pseudo }}
+
+const zonePseudo = document.getElementById("zonePseudo")
+
+if (localStorage.getItem('pseudo')) {
+  commencer_Jeu()
+  jeu.style.display = 'block'
+  pseudoEntrer.style.display = 'none'
+} else {
+  jeu.style.display = 'none'
+}
+
+pseudoOK.onclick = function (e) {
+  const params = window.location.href.split("/");
+  const roomId = params[params.length - 2];
+  let s = new WebSocket("ws://" + document.location.host + `/add/${nouveau_pseudo.value}/${roomId}`);
+
+    localStorage.setItem('pseudo', nouveau_pseudo.value ?? `${(Math.random() + 1).toString(36).substring(7)}`)
+    location.reload();
+};
+
+//commentaire qui sauve tout ??????
+
+//connexion a WebSocket apres la validation du pseudo
+function commencer_Jeu() {
+  const params = window.location.href.split("/");
+  const roomId = params[params.length - 1];
+  socket = new WebSocket("ws://" + document.location.host + "/ws/" + roomId);
+
+  //envoie du pseudo de la personne qui quitte la page
+  window.addEventListener("beforeunload", function (e) {
+      return socket.send(JSON.stringify({quit: localStorage.getItem('pseudo')}))
+  });
+
+let msg = document.getElementById("msg");
+let log = document.getElementById("log");
+
+//ajoute element dans le block de message
+function appendLog(item) {
+    log.appendChild(item);
+}
+
+//creer une node div + ajout contenu
+function creationMsg(msg) {
+  let item = document.createElement("div");
+  if (msg.includes(m)) {
+    item.className = "trouve"
+    item.innerHTML = `"${msg.split(':', 1)}" a trouvé !`;
+  } else {
+    console.log("NOP");
+    console.log(msg);
+  item.innerHTML = `${msg}`;
+  }
+  return item;
+}
+
+//envoie du message (chat)
+document.getElementById("envoie").onclick = function (e) {
+    if (!socket) {
+        return false;
+    }
+    if (!msg.value) {
+        return false;
+    }
+    //socket.send(JSON.stringify({chat: `${moi}: ${msg.value}`})); tim
+    socket.send(JSON.stringify({  "room": roomId , chat: `${moi}: ${msg.value}`})) // de david
+
+    msg.value = "";
+    return false;
+};
+
+  socket.onclose = function (evt) {
+    socket.send(JSON.stringify({quit: localStorage.getItem('pseudo')}))
+  };
+
+  socket.onopen = function () {
+    //socket.send(JSON.stringify({nouveau_joueur: localStorage.getItem('pseudo')})) de tim
+    socket.send(JSON.stringify({  "room": roomId , nouveau_joueur: localStorage.getItem('pseudo') })) // de david
+    if (personnes_deja_presente) personnes_deja_presente.forEach((item, i) => ajoutPseudo(item) );
+    activationEtape[rooms.salonName.etape_courante]()
+  };
+
+  socket.onmessage = function (evt) {
+    const message = JSON.parse(evt.data)
+    const msg = (txt) => message.hasOwnProperty(txt);
+    console.log(message)
+    if (msg("nouveau_joueur"))
+    {
+      if (message.nouveau_joueur != localStorage.getItem('pseudo')) ajoutPseudo(message.nouveau_joueur)
+    }
+
+    if (msg("kind"))
+    {
+      try {
+        let message = JSON.parse(evt.data)
+        onMessage(message);
+      } catch (error) {
+        let messages = evt.data
+        let div = document.createElement("div");
+        div.innerText = messages;
+        appendLog(div);
+      }
+    }
+
+    if (msg("quit"))
+    {
+      suppressionPseudo(message.quit)
+    }
+
+    if (msg("chat"))
+    {
+      appendLog(creationMsg(`${message.chat}`))
+    }
+
+    if (msg("changement_etape")) {
+      console.log("changement_etape");
+      console.log(message);
+      rooms.salonName.etape_courante = message.changement_etape
+      activationEtape[message.changement_etape](message.mot)
+    }
+  };
+}
+
+//active ou desactive l'interaction avec le canvas
+function activationCanvas(activation) {
+  canvas.onmousedown = activation ? function (event) {
+    if (rooms.salonName.users[moi].drawer) {
+      isDrawing = true;
+      allStrokes.push({
+        X:event.pageX -this.offsetLeft,
+        Y: event.pageY -this.offsetTop,
+        finish : true
+      });
+      addPoint(event.pageX - this.offsetLeft, event.pageY - this.offsetTop, true);
+    }
+  } : null;
+
+  canvas.onmousemove = activation ? function (event) {
+    if (rooms.salonName.users[moi].drawer) {
+      if (isDrawing) {
+        allStrokes.push({
+          X:event.pageX -this.offsetLeft,
+          Y: event.pageY -this.offsetTop,
+          finish : true
+        });
+        addPoint(event.pageX - this.offsetLeft, event.pageY - this.offsetTop);
+      }
+    }
+  } : null;
+
+  canvas.onmouseup = activation ? function () {
+    if (rooms.salonName.users[moi].drawer) {
+      isDrawing = false;
+    }
+  } : null;
+
+  canvas.onmouseleave = activation ? function () {
+    if (rooms.salonName.users[moi].drawer) {
+      isDrawing = false;
+    }
+  } : null;
+}
+
+
+
+
+
+//logique d'affichage du canvas
+function onMessage(message) {
+    console.log(message);
+    switch (message.kind) {
+        case MESSAGE_CONNECTED:
+            strokeColor = message.color;
+            for (var i = 0; i < message.users.length; i++) {
+                var user = message.users[i];
+                otherColors[user.id] = user.color;
+                otherStrokes[user.id] = [];
+            }
+            alert('BIENVENUE')
+            console.log("bienvenue")
+            break;
+        case MESSAGE_USER_JOINED:
+            otherColors[message.user.id] = message.user.color;
+            otherStrokes[message.user.id] = [];
+            alert('REJOIND')
+            console.log("a rejoind")
+            break;
+        case MESSAGE_USER_LEFT:
+            delete otherColors[message.userId];
+            delete otherStrokes[message.userId];
+            update();
+            break;
+        case MESSAGE_STROKE:
+            if (message.finish) {
+                otherStrokes.push(message.points);
+            } else {
+                var strokes = otherStrokes;
+                strokes[strokes.length - 1] = strokes[strokes.length - 1].concat(message.points);
+            }
+            update();
+            break;
+        case MESSAGE_CLEAR:
+            otherStrokes = [];
+            update();
+            break;
+    }
+}
+
+
+//ajout des points dans le tableau strokes et met à jour le canvas
+function addPoint(x, y, newStroke) {
+    var p = { x: x, y: y };
+    if (newStroke) {
+        strokes.push([p]);
+    } else {
+        strokes[strokes.length - 1].push(p);
+    }
+    socket.send(JSON.stringify({ kind: MESSAGE_STROKE, points: [p], finish: newStroke }));
+    update();
+}
+
+//dessine sur le canvas
+function update() {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+
+    // Draw me
+    ctx.strokeStyle = strokeColor;
+    drawStrokes(strokes);
+
+    // Draw others
+    // var userIds = Object.keys(otherColors);
+    // for (var i = 0; i < userIds.length; i++) {
+    // var userId = userIds[i];
+    ctx.strokeStyle = otherColors;
+    drawStrokes(otherStrokes);
+    // }
+}
+
+//dessine tout les elements du tableau sur le canvas
+function drawStrokes(strokes) {
+    for (var i = 0; i < strokes.length; i++) {
+        ctx.beginPath();
+        for (var j = 1; j < strokes[i].length; j++) {
+            var prev = strokes[i][j - 1];
+            var current = strokes[i][j];
+            ctx.moveTo(prev.x, prev.y);
+            ctx.lineTo(current.x, current.y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+    }
+}
+
+//non fonctionnelle - c'est censé nettoyer le canvas
+document.getElementById('clearButton').onclick = function () {
+    strokes = [];
+    socket.send(JSON.stringify({ kind: MESSAGE_CLEAR }));
+    update();
+};
+
+
+//affiche pseudo + elements supplementaire selon le statut
+function ajoutPseudo(joueur) {
+  let item = document.createElement("div");
+  item.innerHTML = `<li
+  class="list-group-item d-flex justify-content-between ${moi === joueur ? 'actif_texte' : '' } "
+  id='${joueur}'>${joueur}
+  <div>
+    ${rooms.salonName.users[joueur].drawer ? '<img src="/crayon.svg" width="30" height="30" alt="crayon">' : '' }
+    ${rooms.salonName.users[joueur].admin ? '<img src="/admin.svg" width="30" height="30" alt="crayon" />' : '' }
+  </div>
+  </li>
+  `
+  zonePseudo.appendChild(item);
+}
+
+//suppression du pseudo correspondant indiqué grace à l'id de l'element
+function suppressionPseudo(joueur) {
+  document.getElementById(joueur).remove()
+}
+
+
+</script>
+    {{ template "footer.html" .}}
