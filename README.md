@@ -9,7 +9,7 @@ clientplusajour.txt
  
  
  aidegolang.txt
-  est un fichier pour aider a comprendre go 
+  est un fichier pour aider a comprendre go ( surtout la partie en dessous  best technique pour comprendre type struct car c est aussi des pointeurs!!)
 
 
 
